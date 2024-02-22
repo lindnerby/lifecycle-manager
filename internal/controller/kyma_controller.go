@@ -93,7 +93,12 @@ type KymaReconciler struct {
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions/status,verbs=update
 
 func (r *KymaReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
 	logger := logf.FromContext(ctx)
+	//ctx = metrics.ContextWithMetricRecorder(ctx, r.Metrics)
+	//
+	//metrics := metr.FromContext(ctx)
+
 	logger.V(log.DebugLevel).Info("Kyma reconciliation started")
 
 	ctx = adapter.ContextWithRecorder(ctx, r.EventRecorder)
@@ -197,19 +202,10 @@ func (r *KymaReconciler) reconcile(ctx context.Context, kyma *v1beta2.Kyma) (ctr
 	}
 
 	if r.SyncKymaEnabled(kyma) {
-		updateKymaRequired, err := r.syncCrdsAndUpdateKymaAnnotations(ctx, kyma)
-		if err != nil {
-			r.Metrics.RecordRequeueReason(metrics.CrdsSync, queue.UnexpectedRequeue)
-			return r.requeueWithError(ctx, kyma, fmt.Errorf("could not sync CRDs: %w", err))
-		}
-		if updateKymaRequired {
-			if err := r.Update(ctx, kyma); err != nil {
-				r.Metrics.RecordRequeueReason(metrics.CrdAnnotationsUpdate, queue.UnexpectedRequeue)
-				return r.requeueWithError(ctx, kyma, fmt.Errorf("could not update kyma annotations: %w", err))
-			}
-			r.Metrics.RecordRequeueReason(metrics.CrdAnnotationsUpdate, queue.IntendedRequeue)
-			return ctrl.Result{Requeue: true}, nil
-		}
+		err := syncRemoteCrdsUseCase.Execute(ctx, kyma)
+
+		err := replaceSpecFromRemoteUseCase.Execute(ctx, kyma)
+
 		// update the control-plane kyma with the changes to the spec of the remote Kyma
 		if err := r.replaceSpecFromRemote(ctx, kyma); err != nil {
 			r.Metrics.RecordRequeueReason(metrics.SpecReplacementFromRemote, queue.UnexpectedRequeue)
@@ -240,6 +236,9 @@ func (r *KymaReconciler) syncCrdsAndUpdateKymaAnnotations(ctx context.Context, k
 	if err != nil {
 		return false, fmt.Errorf("failed to get syncContext: %w", err)
 	}
+
+	r.Client
+
 	updateRequired, err := remote.SyncCrdsAndUpdateKymaAnnotations(
 		ctx, kyma, syncContext.RuntimeClient, syncContext.ControlPlaneClient)
 	if err != nil {

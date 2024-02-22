@@ -28,72 +28,88 @@ type Client interface {
 	client.Writer
 }
 
-type CachedUpgradeClient struct {
+type SyncRemoteCrdService struct {
 	kcpClient     Client
 	runtimeClient Client
 	crdCache      *cache.CrdCache
 }
 
-func NewCachedUpgradeClient() *CachedUpgradeClient {
-
+func NewSyncRemoteCrdService() SyncRemoteCrdService {
+	return SyncRemoteCrdService{
+		kcpClient:     nil,
+		runtimeClient: nil,
+		crdCache:      nil,
+	}
 }
 
-func (c *CachedUpgradeClient) SyncCrds(ctx context.Context, kyma *v1beta2.Kyma) (bool, error) {
-	kymaCrdUpdated, err := c.fetchCrdsAndUpdateKymaAnnotations(ctx, kyma, shared.KymaKind)
-	if client.IgnoreNotFound(err) != nil {
-		return false, fmt.Errorf("failed to fetch Kyma CRDs and update its Kyma annotations: %w", err)
-	}
+//func (c *SyncRemoteCrdService) Sync(ctx context.Context, kyma *v1beta2.Kyma) (bool, error) {
+//	kymaCrdUpdated, err := c.patchCrdsAndUpdateKymaAnnotations(ctx, kyma, shared.KymaKind)
+//	if client.IgnoreNotFound(err) != nil {
+//		return false, fmt.Errorf("failed to fetch Kyma CRDs and update its Kyma annotations: %w", err)
+//	}
+//
+//	moduleTemplateCrdUpdated, err := c.patchCrdsAndUpdateKymaAnnotations(ctx, kyma, shared.ModuleTemplateKind)
+//	if client.IgnoreNotFound(err) != nil {
+//		return false, fmt.Errorf("failed to fetch ModuleTemplate CRDs and update its Kyma annotations: %w", err)
+//	}
+//
+//	if {
+//
+//	}
+//	return kymaCrdUpdated || moduleTemplateCrdUpdated, nil
+//}
 
-	moduleTemplateCrdUpdated, err := c.fetchCrdsAndUpdateKymaAnnotations(ctx, kyma, shared.ModuleTemplateKind)
-	if client.IgnoreNotFound(err) != nil {
-		return false, fmt.Errorf("failed to fetch ModuleTemplate CRDs and update its Kyma annotations: %w", err)
-	}
-
-	return kymaCrdUpdated || moduleTemplateCrdUpdated, nil
-}
-
-func (c *CachedUpgradeClient) fetchCrdsAndUpdateKymaAnnotations(ctx context.Context, kyma *v1beta2.Kyma, kind shared.Kind) (bool, error) {
+func (c *SyncRemoteCrdService) PatchCrdsAndUpdateKymaAnnotations(ctx context.Context, kyma *v1beta2.Kyma, kind shared.Kind) (bool, error) {
 	crdName := GetName(kind)
-	kcpCrd, skrCrd, err := c.fetchCrds(ctx, crdName)
+	kcpCrd, err := c.fetchCrdFromKcp(ctx, crdName)
 	if err != nil {
 		return false, err
 	}
-	crdUpdated, err := c.updateRemoteCRD(ctx, kyma, skrCrd, kcpCrd)
+	skrCrd, err := c.fetchCrdFromSkr(ctx, crdName)
 	if err != nil {
 		return false, err
 	}
-	if crdUpdated {
+	if ShouldPatchRemoteCRD(skrCrd, kcpCrd, kyma) {
+		err := c.PatchCRD(ctx, kcpCrd)
+		if err != nil {
+			return false, err
+		}
 		err = c.runtimeClient.Get(ctx, client.ObjectKey{Name: string(crdName)}, skrCrd)
 		if err != nil {
 			return false, fmt.Errorf("failed to get SKR CRD: %w", err)
 		}
 		updateKymaAnnotations(kyma, kcpCrd, skrCrd)
+		return true, nil
 	}
 
-	return crdUpdated, nil
+	return false, nil
 }
 
-func (c *CachedUpgradeClient) fetchCrds(ctx context.Context, crdName Name) (*apiextensionsv1.CustomResourceDefinition, *apiextensionsv1.CustomResourceDefinition, error) {
+func (c *SyncRemoteCrdService) fetchCrdFromKcp(ctx context.Context, crdName Name) (*apiextensionsv1.CustomResourceDefinition, error) {
 	crd, ok := c.crdCache.Get(crdName)
 	if !ok {
 		crd = apiextensionsv1.CustomResourceDefinition{}
 		err := c.kcpClient.Get(ctx, client.ObjectKey{Name: string(crdName)}, &crd)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to fetch CRDs from kcp: %w", err)
+			return nil, fmt.Errorf("failed to fetch CRDs from kcp: %w", err)
 		}
 		c.crdCache.Add(crdName, crd)
 	}
 
-	crdFromRuntime := &apiextensionsv1.CustomResourceDefinition{}
-	err := c.runtimeClient.Get(ctx, client.ObjectKey{Name: crdName}, crdFromRuntime)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch CRDs from runtime: %w", err)
-	}
-
-	return &crd, crdFromRuntime, nil
+	return &crd, nil
 }
 
-func (c *CachedUpgradeClient) PatchCRD(ctx context.Context, crd *apiextensionsv1.CustomResourceDefinition) error {
+func (c *SyncRemoteCrdService) fetchCrdFromSkr(ctx context.Context, crdName Name) (*apiextensionsv1.CustomResourceDefinition, error) {
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := c.runtimeClient.Get(ctx, client.ObjectKey{Name: string(crdName)}, crd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch CRDs from skr runtime: %w", err)
+	}
+
+	return crd, nil
+}
+
+func (c *SyncRemoteCrdService) PatchCRD(ctx context.Context, crd *apiextensionsv1.CustomResourceDefinition) error {
 	crdToApply := &apiextensionsv1.CustomResourceDefinition{}
 	crdToApply.SetGroupVersionKind(crd.GroupVersionKind())
 	crdToApply.SetName(crd.Name)
@@ -108,19 +124,6 @@ func (c *CachedUpgradeClient) PatchCRD(ctx context.Context, crd *apiextensionsv1
 		return fmt.Errorf("failed to patch CRD: %w", err)
 	}
 	return nil
-}
-
-func (c *CachedUpgradeClient) updateRemoteCRD(ctx context.Context, kyma *v1beta2.Kyma, crdFromRuntime *apiextensionsv1.CustomResourceDefinition, kcpCrd *apiextensionsv1.CustomResourceDefinition) (bool, error) {
-	if ShouldPatchRemoteCRD(crdFromRuntime, kcpCrd, kyma) {
-		err := c.PatchCRD(ctx, kcpCrd)
-		if err != nil {
-			return false, err
-		}
-
-		return true, nil
-	}
-
-	return false, nil
 }
 
 func ShouldPatchRemoteCRD(skrCrd *apiextensionsv1.CustomResourceDefinition, kcpCrd *apiextensionsv1.CustomResourceDefinition, kyma *v1beta2.Kyma) bool {
