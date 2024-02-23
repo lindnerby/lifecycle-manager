@@ -5,14 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	apicorev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -22,43 +22,78 @@ import (
 	"github.com/kyma-project/lifecycle-manager/pkg/util"
 )
 
-type ClientFunc func() *rest.Config
+//type ClientFunc func() *rest.Config
 
 var (
 	//nolint:gochecknoglobals // used for testing
-	LocalClient                        ClientFunc
+	//LocalClient                        ClientFunc
 	ErrNotFoundAndKCPKymaUnderDeleting = errors.New("not found and kcp kyma under deleting")
 )
 
 type KymaSynchronizationContext struct {
-	ControlPlaneClient Client
-	RuntimeClient      Client
+	kcp Client
+	//RuntimeClient      Client
+	cache *ClientCache
 }
 
-func InitializeKymaSynchronizationContext(ctx context.Context, kcp Client, cache *ClientCache,
-	kyma *v1beta2.Kyma, syncNamespace string,
-) (*KymaSynchronizationContext, error) {
-	strategyValue, found := kyma.Annotations[shared.SyncStrategyAnnotation]
-	syncStrategy := v1beta2.SyncStrategyLocalSecret
-	if found && strategyValue == v1beta2.SyncStrategyLocalClient {
-		syncStrategy = v1beta2.SyncStrategyLocalClient
+func (c *KymaSynchronizationContext) GetRemoteClient(ctx context.Context, kyma *v1beta2.Kyma, syncNamespace string) (*ConfigAndClient, error) {
+	key := client.ObjectKeyFromObject(kyma)
+	remoteClient := c.cache.Get(key)
+	if remoteClient != nil {
+		return remoteClient, nil
 	}
-	skr, err := NewClientLookup(kcp, cache, v1beta2.SyncStrategy(syncStrategy)).
-		Lookup(ctx, client.ObjectKeyFromObject(kyma))
+
+	kubeConfigSecretList := &apicorev1.SecretList{}
+	if err := c.kcp.List(ctx, kubeConfigSecretList, &client.ListOptions{
+		LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{shared.KymaName: key.Name}), Namespace: key.Namespace,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to list kubeconfig secrets: %w", err)
+	} else if len(kubeConfigSecretList.Items) < 1 {
+		return nil, fmt.Errorf("secret with label %s=%s %w", shared.KymaName, key.Name, ErrAccessSecretNotFound)
+	}
+
+	kubeConfigSecret := kubeConfigSecretList.Items[0]
+
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigSecret.Data[KubeConfigKey])
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rest config from kubeconfig: %w", err)
+	}
+
+	restConfig.QPS = c.kcp.Config().QPS
+	restConfig.Burst = c.kcp.Config().Burst
+
 	if err != nil {
 		return nil, err
 	}
 
-	sync := &KymaSynchronizationContext{
-		ControlPlaneClient: kcp,
-		RuntimeClient:      skr,
+	clnt, err := client.New(restConfig, client.Options{Scheme: c.kcp.Scheme()})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lookup client: %w", err)
 	}
 
-	if err := sync.ensureRemoteNamespaceExists(ctx, syncNamespace); err != nil {
-		return nil, err
+	skr := NewClientWithConfig(clnt, restConfig)
+	c.cache.Set(key, skr)
+
+	namespace := &apicorev1.Namespace{
+		ObjectMeta: apimetav1.ObjectMeta{
+			Name:   syncNamespace,
+			Labels: map[string]string{shared.ManagedBy: shared.OperatorName},
+		},
+		TypeMeta: apimetav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+	}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(namespace); err != nil {
+		return nil, fmt.Errorf("failed to encode namespace: %w", err)
 	}
 
-	return sync, nil
+	force := true
+	patchOpts := &client.PatchOptions{Force: &force, FieldManager: "kyma-sync-context"}
+	patch := client.RawPatch(types.ApplyPatchType, buf.Bytes())
+	if err := skr.Patch(ctx, namespace, patch, patchOpts); err != nil {
+		return nil, fmt.Errorf("failed to ensure remote namespace exists: %w", err)
+	}
+
+	return skr, nil
 }
 
 func (c *KymaSynchronizationContext) GetRemotelySyncedKyma(
@@ -118,33 +153,33 @@ func DeleteRemotelySyncedKyma(
 
 // ensureRemoteNamespaceExists tries to ensure existence of a namespace for synchronization based on
 // name of controlPlaneKyma.namespace in this order.
-func (c *KymaSynchronizationContext) ensureRemoteNamespaceExists(ctx context.Context, syncNamespace string) error {
-	namespace := &apicorev1.Namespace{
-		ObjectMeta: apimetav1.ObjectMeta{
-			Name:   syncNamespace,
-			Labels: map[string]string{shared.ManagedBy: shared.OperatorName},
-		},
-		// setting explicit type meta is required for SSA on Namespaces
-		TypeMeta: apimetav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
-	}
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(namespace); err != nil {
-		return fmt.Errorf("failed to encode namespace: %w", err)
-	}
-
-	patch := client.RawPatch(types.ApplyPatchType, buf.Bytes())
-	force := true
-	fieldManager := "kyma-sync-context"
-
-	if err := c.RuntimeClient.Patch(
-		ctx, namespace, patch, &client.PatchOptions{Force: &force, FieldManager: fieldManager},
-	); err != nil {
-		return fmt.Errorf("failed to ensure remote namespace exists: %w", err)
-	}
-
-	return nil
-}
+//func (c *KymaSynchronizationContext) ensureRemoteNamespaceExists(ctx context.Context, syncNamespace string) error {
+//	namespace := &apicorev1.Namespace{
+//		ObjectMeta: apimetav1.ObjectMeta{
+//			Name:   syncNamespace,
+//			Labels: map[string]string{shared.ManagedBy: shared.OperatorName},
+//		},
+//		// setting explicit type meta is required for SSA on Namespaces
+//		TypeMeta: apimetav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+//	}
+//
+//	var buf bytes.Buffer
+//	if err := json.NewEncoder(&buf).Encode(namespace); err != nil {
+//		return fmt.Errorf("failed to encode namespace: %w", err)
+//	}
+//
+//	patch := client.RawPatch(types.ApplyPatchType, buf.Bytes())
+//	force := true
+//	fieldManager := "kyma-sync-context"
+//
+//	if err := c.RuntimeClient.Patch(
+//		ctx, namespace, patch, &client.PatchOptions{Force: &force, FieldManager: fieldManager},
+//	); err != nil {
+//		return fmt.Errorf("failed to ensure remote namespace exists: %w", err)
+//	}
+//
+//	return nil
+//}
 
 func (c *KymaSynchronizationContext) CreateOrUpdateCRD(ctx context.Context, plural string) error {
 	crd := &apiextensionsv1.CustomResourceDefinition{}

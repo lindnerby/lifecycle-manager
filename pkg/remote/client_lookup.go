@@ -18,10 +18,6 @@ type ClientLookup struct {
 	strategy v1beta2.SyncStrategy
 }
 
-func NewClientLookup(kcp Client, cache *ClientCache, strategy v1beta2.SyncStrategy) *ClientLookup {
-	return &ClientLookup{kcp: kcp, cache: cache, strategy: strategy}
-}
-
 func (l *ClientLookup) Lookup(ctx context.Context, key client.ObjectKey) (Client, error) {
 	remoteClient := l.cache.Get(key)
 	if remoteClient != nil {
@@ -55,12 +51,12 @@ func (l *ClientLookup) restConfigFromStrategy(ctx context.Context, key client.Ob
 	}
 
 	switch l.strategy {
-	case v1beta2.SyncStrategyLocalClient:
-		if LocalClient != nil {
-			restConfig = LocalClient()
-		} else {
-			restConfig = l.kcp.Config()
-		}
+	//case v1beta2.SyncStrategyLocalClient:
+	//	if LocalClient != nil {
+	//		restConfig = LocalClient()
+	//	} else {
+	//		restConfig = l.kcp.Config()
+	//	}
 	case v1beta2.SyncStrategyLocalSecret:
 		fallthrough
 	default:

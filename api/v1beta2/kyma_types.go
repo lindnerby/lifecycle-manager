@@ -110,7 +110,7 @@ type SyncStrategy string
 
 const (
 	SyncStrategyLocalSecret = "local-secret"
-	SyncStrategyLocalClient = "local-client"
+	//SyncStrategyLocalClient = "local-client"
 )
 
 func (kyma *Kyma) GetModuleStatusMap() map[string]*ModuleStatus {
