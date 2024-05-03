@@ -161,10 +161,9 @@ func setupManager(flagVar *flags.FlagVar, cacheOptions cache.Options, scheme *ma
 		os.Exit(bootstrapFailedExitCode)
 	}
 
-	var skrWebhookManager *watcher.SKRWebhookManifestManager
 	options := controllerOptionsFromFlagVar(flagVar)
 	if flagVar.EnableKcpWatcher {
-		if skrWebhookManager, err = createSkrWebhookManager(mgr, flagVar); err != nil {
+		if _, err = createSkrWebhookManager(mgr, flagVar); err != nil {
 			setupLog.Error(err, "failed to create skr webhook manager")
 			os.Exit(bootstrapFailedExitCode)
 		}
@@ -176,8 +175,7 @@ func setupManager(flagVar *flags.FlagVar, cacheOptions cache.Options, scheme *ma
 	descriptorProvider := provider.NewCachedDescriptorProvider(nil)
 	kymaMetrics := metrics.NewKymaMetrics(sharedMetrics)
 	mandatoryModulesMetrics := metrics.NewMandatoryModulesMetrics()
-	setupKymaReconciler(mgr, remoteClientCache, descriptorProvider, flagVar, options, skrWebhookManager, kymaMetrics,
-		setupLog)
+	setupKymaReconciler(mgr, descriptorProvider, flagVar, options, kymaMetrics, setupLog)
 	setupManifestReconciler(mgr, flagVar, options, sharedMetrics, mandatoryModulesMetrics, setupLog)
 	setupMandatoryModuleReconciler(mgr, descriptorProvider, flagVar, options, mandatoryModulesMetrics, setupLog)
 	setupMandatoryModuleDeletionReconciler(mgr, descriptorProvider, flagVar, options, setupLog)
@@ -271,9 +269,12 @@ func controllerOptionsFromFlagVar(flagVar *flags.FlagVar) ctrlruntime.Options {
 	}
 }
 
-func setupKymaReconciler(mgr ctrl.Manager, remoteClientCache *remote.ClientCache,
-	descriptorProvider *provider.CachedDescriptorProvider, flagVar *flags.FlagVar, options ctrlruntime.Options,
-	skrWebhookManager *watcher.SKRWebhookManifestManager, kymaMetrics *metrics.KymaMetrics, setupLog logr.Logger,
+func setupKymaReconciler(mgr ctrl.Manager,
+	descriptorProvider *provider.CachedDescriptorProvider,
+	flagVar *flags.FlagVar,
+	options ctrlruntime.Options,
+	kymaMetrics *metrics.KymaMetrics,
+	setupLog logr.Logger,
 ) {
 	options.MaxConcurrentReconciles = flagVar.MaxConcurrentKymaReconciles
 	kcpRestConfig := mgr.GetConfig()
@@ -282,17 +283,13 @@ func setupKymaReconciler(mgr ctrl.Manager, remoteClientCache *remote.ClientCache
 		Client:             mgr.GetClient(),
 		EventRecorder:      mgr.GetEventRecorderFor(shared.OperatorName),
 		KcpRestConfig:      kcpRestConfig,
-		RemoteClientCache:  remoteClientCache,
 		DescriptorProvider: descriptorProvider,
-		SyncRemoteCrds:     remote.NewSyncCrdsUseCase(nil),
-		SKRWebhookManager:  skrWebhookManager,
 		RequeueIntervals: queue.RequeueIntervals{
 			Success: flagVar.KymaRequeueSuccessInterval,
 			Busy:    flagVar.KymaRequeueBusyInterval,
 			Error:   flagVar.KymaRequeueErrInterval,
 			Warning: flagVar.KymaRequeueWarningInterval,
 		},
-		InKCPMode:           flagVar.InKCPMode,
 		RemoteSyncNamespace: flagVar.RemoteSyncNamespace,
 		IsManagedKyma:       flagVar.IsKymaManaged,
 		Metrics:             kymaMetrics,

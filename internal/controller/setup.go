@@ -48,7 +48,6 @@ var (
 	errConvertingWatcherEvent = errors.New("error converting watched object to unstructured event")
 )
 
-// SetupWithManager sets up the Kyma controller with the Manager.
 func (r *KymaReconciler) SetupWithManager(mgr ctrl.Manager,
 	options ctrlruntime.Options, settings SetupUpSetting,
 ) error {
