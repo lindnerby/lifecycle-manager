@@ -223,7 +223,6 @@ func (r *KymaReconciler) handleProcessingState(ctx context.Context, kyma *v1beta
 }
 
 func (r *KymaReconciler) handleDeletingState(ctx context.Context, kyma *v1beta2.Kyma) (ctrl.Result, error) {
-
 	err := r.cleanupManifestCRs(ctx, kyma)
 	if err != nil {
 		r.enqueueWarningEvent(kyma, deletionError, err)
