@@ -21,6 +21,7 @@ import (
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"time"
 
 	"github.com/kyma-project/lifecycle-manager/api/shared"
 )
@@ -446,4 +447,16 @@ func (kyma *Kyma) GetNamespacedName() types.NamespacedName {
 		Namespace: kyma.GetNamespace(),
 		Name:      kyma.GetName(),
 	}
+}
+
+func (kyma *Kyma) HasDeletionTimestamp() bool {
+	return !kyma.DeletionTimestamp.IsZero()
+}
+
+func (kyma *Kyma) CalculateRequeueAfterTime(timeout time.Duration) time.Duration {
+	deletionDeadline := kyma.DeletionTimestamp.Add(timeout)
+	if time.Now().Before(deletionDeadline) {
+		return time.Until(deletionDeadline.Add(time.Second))
+	}
+	return 0
 }
