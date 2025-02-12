@@ -5,9 +5,7 @@ linters:
     - depguard # checks if package imports are whitelisted
     - exhaustruct # too subjective and harms code readability
     - exportloopref # deprecated (since v1.60.2), replaced by copyloopvar
-    - gomnd # deprecated (since v1.58.0), renamed to mnd
     - lll
-    - execinquery # deprecated (since v1.58.0) due to: The repository of the linter has been archived by the owner.
     - nlreturn # too strict and mostly code is not more readable
     - sqlclosecheck # not needed for this project
     - paralleltest # should be enabled consciously for long running tests
@@ -178,6 +176,7 @@ issues:
       linters:
         - wrapcheck # Errors do not need to be wrapped in unit and integration tests
         - err113 # Dynamic error creation in unit and integration tests is ok
+        - fatcontext # Unit and integration tests are allowed to have fat contexts
         - gochecknoglobals # Does not apply to unit and integration tests
         - funlen # Table driven unit and integration tests exceed function length by design
         - maintidx # Table driven unit and integration tests exceed maintainability index by design

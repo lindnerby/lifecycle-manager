@@ -95,7 +95,7 @@ func (c *ConcurrentCleanup) Run(ctx context.Context, infos []*resource.Info) err
 
 	var errs []error
 	present := len(infos)
-	for range len(infos) {
+	for range infos {
 		err := <-results
 		if util.IsNotFound(err) {
 			present--

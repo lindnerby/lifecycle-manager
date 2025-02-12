@@ -186,7 +186,7 @@ func (s *lookupStrategyStub) IsResponsible(_ *templatelookup.ModuleInfo, _ *v1be
 	return s.responsible
 }
 
-func (s lookupStrategyStub) Lookup(_ context.Context,
+func (s *lookupStrategyStub) Lookup(_ context.Context,
 	_ *templatelookup.ModuleInfo,
 	_ *v1beta2.Kyma,
 	_ *v1beta2.ModuleReleaseMeta,
