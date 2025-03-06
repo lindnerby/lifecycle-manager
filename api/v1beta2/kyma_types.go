@@ -121,15 +121,6 @@ const (
 // lookup, or other behavioral patterns when interacting with the remote cluster.
 type SyncStrategy string
 
-func (kyma *Kyma) GetModuleStatusMap() map[string]*ModuleStatus {
-	moduleStatusMap := make(map[string]*ModuleStatus)
-	for i := range kyma.Status.Modules {
-		moduleStatus := &kyma.Status.Modules[i]
-		moduleStatusMap[moduleStatus.Name] = moduleStatus
-	}
-	return moduleStatusMap
-}
-
 // KymaStatus defines the observed state of Kyma.
 type KymaStatus struct {
 	// State signifies current state of Kyma.
@@ -159,6 +150,15 @@ func (status *KymaStatus) GetModuleStatus(moduleName string) *ModuleStatus {
 		}
 	}
 	return nil
+}
+
+func (kyma *Kyma) GetModuleStatusMap() map[string]*ModuleStatus {
+	moduleStatusMap := make(map[string]*ModuleStatus)
+	for i := range kyma.Status.Modules {
+		moduleStatus := &kyma.Status.Modules[i]
+		moduleStatusMap[moduleStatus.Name] = moduleStatus
+	}
+	return moduleStatusMap
 }
 
 type ModuleStatus struct {
@@ -202,6 +202,13 @@ func (m *ModuleStatus) GetManifestCR() *unstructured.Unstructured {
 	module.SetName(m.Manifest.GetName())
 	module.SetNamespace(m.Manifest.GetNamespace())
 	return module
+}
+
+func (m *ModuleStatus) GetManifestName() types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: m.Manifest.GetNamespace(),
+		Name:      m.Manifest.GetName(),
+	}
 }
 
 // TrackingObject contains TypeMeta and PartialMeta to allow a generation based object tracking.

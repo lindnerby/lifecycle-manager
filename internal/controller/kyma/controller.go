@@ -59,20 +59,25 @@ const (
 	patchStatusError  event.Reason = "PatchStatus"
 )
 
+type UpdateStatusModules interface {
+	Execute() error
+}
+
 type Reconciler struct {
 	client.Client
 	event.Event
 	queue.RequeueIntervals
-	SkrContextFactory   remote.SkrContextProvider
-	DescriptorProvider  *provider.CachedDescriptorProvider
-	SyncRemoteCrds      remote.SyncCrdsUseCase
-	SKRWebhookManager   *watcher.SKRWebhookManifestManager
-	InKCPMode           bool
-	RemoteSyncNamespace string
-	IsManagedKyma       bool
-	Metrics             *metrics.KymaMetrics
-	RemoteCatalog       *remote.RemoteCatalog
-	TemplateLookup      *templatelookup.TemplateLookup
+	updateStatusModulesUC UpdateStatusModules
+	SkrContextFactory     remote.SkrContextProvider
+	DescriptorProvider    *provider.CachedDescriptorProvider
+	SyncRemoteCrds        remote.SyncCrdsUseCase
+	SKRWebhookManager     *watcher.SKRWebhookManifestManager
+	InKCPMode             bool
+	RemoteSyncNamespace   string
+	IsManagedKyma         bool
+	Metrics               *metrics.KymaMetrics
+	RemoteCatalog         *remote.RemoteCatalog
+	TemplateLookup        *templatelookup.TemplateLookup
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -504,6 +509,12 @@ func (r *Reconciler) reconcileManifests(ctx context.Context, kyma *v1beta2.Kyma)
 	if err := runner.ReconcileManifests(ctx, kyma, modules); err != nil {
 		return fmt.Errorf("sync failed: %w", err)
 	}
+
+	err := r.updateStatusModulesUC.Execute()
+	if err != nil {
+		return fmt.Errorf("error while updating status.modules of Kyma %s: %w", kyma.Name, err)
+	}
+
 	runner.SyncModuleStatus(ctx, kyma, modules, r.Metrics)
 	// If module get removed from kyma, the module deletion happens here.
 	if err := r.DeleteNoLongerExistingModules(ctx, kyma); err != nil {
