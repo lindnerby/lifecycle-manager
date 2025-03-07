@@ -16,9 +16,9 @@ import (
 type (
 	Modules []*Module
 	Module  struct {
-		ModuleName string
-		FQDN       string
-		Template   *templatelookup.ModuleTemplateInfo
+		Name     string
+		FQDN     string
+		Template *templatelookup.ModuleTemplateInfo
 		*v1beta2.Manifest
 		Enabled     bool
 		IsUnmanaged bool
@@ -44,7 +44,7 @@ func (m *Module) ApplyDefaultMetaToManifest(kyma *v1beta2.Kyma) {
 	if templateLabels != nil {
 		lbls[shared.ControllerName] = m.Template.GetLabels()[shared.ControllerName]
 	}
-	lbls[shared.ModuleName] = m.ModuleName
+	lbls[shared.ModuleName] = m.Name
 	lbls[shared.ChannelLabel] = m.Template.Spec.Channel
 	lbls[shared.ManagedBy] = shared.OperatorName
 	if m.Template.Spec.Mandatory {

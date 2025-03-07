@@ -164,7 +164,7 @@ func (manifest *Manifest) GetKymaName() (string, error) {
 func (manifest *Manifest) GetModuleName() (string, error) {
 	moduleName, found := manifest.GetLabels()[shared.ModuleName]
 	if !found {
-		return "", fmt.Errorf("ModuleName label not found %w", ErrLabelNotFound)
+		return "", fmt.Errorf("Name label not found %w", ErrLabelNotFound)
 	}
 	return moduleName, nil
 }

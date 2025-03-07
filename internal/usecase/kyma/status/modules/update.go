@@ -29,7 +29,7 @@ type UpdateStatusModulesUC struct {
 	updateDeletedStatusModulesUC  UpdateStatusModulesDeleted
 }
 
-func NewUpdateStatusModulesUC(metrics *metrics.KymaMetrics) *UpdateStatusModulesUC {
+func NewUpdateStatusModulesUC() *UpdateStatusModulesUC {
 	return &UpdateStatusModulesUC{}
 }
 
@@ -43,14 +43,13 @@ func (uc *UpdateStatusModulesUC) Execute(ctx context.Context, kyma *v1beta2.Kyma
 }
 
 func updateModuleStatusFromExistingModules(kyma *v1beta2.Kyma, modules common.Modules) {
-	moduleStatusMap := kyma.GetModuleStatusMap()
+	currentStatusModules := kyma.GetModuleStatusMap()
 
-	for idx := range modules {
-		module := modules[idx]
-		moduleStatus, exists := moduleStatusMap[module.ModuleName]
-		latestModuleStatus := generateModuleStatus(module, moduleStatus)
+	for _, module := range modules {
+		currentModuleStatus, exists := currentStatusModules[module.Name]
+		latestModuleStatus := generateModuleStatus(module, currentModuleStatus)
 		if exists {
-			*moduleStatus = latestModuleStatus
+			*currentModuleStatus = latestModuleStatus
 		} else {
 			kyma.Status.Modules = append(kyma.Status.Modules, latestModuleStatus)
 		}
@@ -84,7 +83,7 @@ func generateModuleStatus(module *common.Module, existStatus *v1beta2.ModuleStat
 	}
 
 	moduleStatus := v1beta2.ModuleStatus{
-		Name:    module.ModuleName,
+		Name:    module.Name,
 		FQDN:    module.FQDN,
 		State:   manifestObject.Status.State,
 		Channel: module.Template.DesiredChannel,
@@ -127,7 +126,7 @@ func generateModuleStatusFromError(module *common.Module, existStatus *v1beta2.M
 		return *newModuleStatus
 	case errors.Is(module.Template.Err, moduletemplateinfolookup.ErrNoTemplatesInListResult):
 		return v1beta2.ModuleStatus{
-			Name:    module.ModuleName,
+			Name:    module.Name,
 			Channel: module.Template.DesiredChannel,
 			FQDN:    module.FQDN,
 			State:   shared.StateWarning,
@@ -144,7 +143,7 @@ func generateModuleStatusFromError(module *common.Module, existStatus *v1beta2.M
 		return *newModuleStatus
 	default:
 		return v1beta2.ModuleStatus{
-			Name:    module.ModuleName,
+			Name:    module.Name,
 			Channel: module.Template.DesiredChannel,
 			FQDN:    module.FQDN,
 			State:   shared.StateError,

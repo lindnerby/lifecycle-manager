@@ -112,7 +112,7 @@ func (r *Runner) updateManifest(ctx context.Context, kyma *v1beta2.Kyma,
 		return commonerrs.ErrTypeAssert
 	}
 
-	moduleStatus := kyma.GetModuleStatusMap()[module.ModuleName]
+	moduleStatus := kyma.GetModuleStatusMap()[module.Name]
 	manifestInCluster, err := r.getManifest(ctx, newManifest.GetName(), newManifest.GetNamespace())
 	if err != nil {
 		return err
