@@ -211,7 +211,7 @@ var _ = BeforeSuite(func() {
 		RequeueIntervals:    intervals,
 		SKRWebhookManager:   skrWebhookChartManager,
 		DescriptorProvider:  provider.NewCachedDescriptorProvider(),
-		SyncRemoteCrds:      remote.NewSyncCrdsUseCase(kcpClient, testSkrContextFactory, nil),
+		syncRemoteCrdsUC:    remote.NewSyncCrdsUseCase(kcpClient, testSkrContextFactory, nil),
 		RemoteSyncNamespace: flags.DefaultRemoteSyncNamespace,
 		InKCPMode:           true,
 		Metrics:             metrics.NewKymaMetrics(metrics.NewSharedMetrics()),

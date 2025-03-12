@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/kyma-project/lifecycle-manager/internal/usecase/kyma/status/modules"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -299,56 +300,6 @@ func scheduleMetricsCleanup(kymaMetrics *metrics.KymaMetrics, cleanupIntervalInM
 	setupLog.V(log.DebugLevel).Info("scheduled job for cleaning up metrics")
 }
 
-func setupKymaReconciler(mgr ctrl.Manager, descriptorProvider *provider.CachedDescriptorProvider,
-	skrContextFactory remote.SkrContextProvider, event event.Event, flagVar *flags.FlagVar, options ctrlruntime.Options,
-	skrWebhookManager *watcher.SKRWebhookManifestManager, kymaMetrics *metrics.KymaMetrics,
-	setupLog logr.Logger, maintenanceWindow maintenancewindows.MaintenanceWindow,
-) {
-	options.RateLimiter = internal.RateLimiter(flagVar.FailureBaseDelay,
-		flagVar.FailureMaxDelay, flagVar.RateLimiterFrequency, flagVar.RateLimiterBurst)
-	options.CacheSyncTimeout = flagVar.CacheSyncTimeout
-	options.MaxConcurrentReconciles = flagVar.MaxConcurrentKymaReconciles
-
-	moduleTemplateInfoLookupStrategies := moduletemplateinfolookup.NewModuleTemplateInfoLookupStrategies([]moduletemplateinfolookup.ModuleTemplateInfoLookupStrategy{
-		moduletemplateinfolookup.NewByVersionStrategy(mgr.GetClient()),
-		moduletemplateinfolookup.NewByChannelStrategy(mgr.GetClient()),
-		moduletemplateinfolookup.NewWithMaintenanceWindowDecorator(maintenanceWindow,
-			moduletemplateinfolookup.NewByModuleReleaseMetaStrategy(mgr.GetClient())),
-	})
-
-	if err := (&kyma.Reconciler{
-		Client:             mgr.GetClient(),
-		SkrContextFactory:  skrContextFactory,
-		Event:              event,
-		DescriptorProvider: descriptorProvider,
-		SyncRemoteCrds:     remote.NewSyncCrdsUseCase(mgr.GetClient(), skrContextFactory, nil),
-		SKRWebhookManager:  skrWebhookManager,
-		RequeueIntervals: queue.RequeueIntervals{
-			Success: flagVar.KymaRequeueSuccessInterval,
-			Busy:    flagVar.KymaRequeueBusyInterval,
-			Error:   flagVar.KymaRequeueErrInterval,
-			Warning: flagVar.KymaRequeueWarningInterval,
-		},
-		InKCPMode:           flagVar.InKCPMode,
-		RemoteSyncNamespace: flagVar.RemoteSyncNamespace,
-		IsManagedKyma:       flagVar.IsKymaManaged,
-		Metrics:             kymaMetrics,
-		RemoteCatalog: remote.NewRemoteCatalogFromKyma(mgr.GetClient(), skrContextFactory,
-			flagVar.RemoteSyncNamespace),
-		TemplateLookup: templatelookup.NewTemplateLookup(mgr.GetClient(), descriptorProvider,
-			moduleTemplateInfoLookupStrategies),
-	}).SetupWithManager(
-		mgr, options, kyma.SetupOptions{
-			ListenerAddr:                 flagVar.KymaListenerAddr,
-			EnableDomainNameVerification: flagVar.EnableDomainNameVerification,
-			IstioNamespace:               flagVar.IstioNamespace,
-		},
-	); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Kyma")
-		os.Exit(1)
-	}
-}
-
 func createSkrWebhookManager(mgr ctrl.Manager, skrContextFactory remote.SkrContextProvider,
 	flagVar *flags.FlagVar,
 ) (*watcher.SKRWebhookManifestManager, error) {
@@ -388,7 +339,7 @@ func createSkrWebhookManager(mgr ctrl.Manager, skrContextFactory remote.SkrConte
 
 func setupPurgeReconciler(mgr ctrl.Manager,
 	skrContextProvider remote.SkrContextProvider,
-	event event.Event,
+	event event.RecorderWrapper,
 	flagVar *flags.FlagVar,
 	options ctrlruntime.Options,
 	setupLog logr.Logger,
@@ -415,7 +366,7 @@ func setupPurgeReconciler(mgr ctrl.Manager,
 
 func setupManifestReconciler(mgr ctrl.Manager, flagVar *flags.FlagVar, options ctrlruntime.Options,
 	sharedMetrics *metrics.SharedMetrics, mandatoryModulesMetrics *metrics.MandatoryModulesMetrics,
-	setupLog logr.Logger, event event.Event,
+	setupLog logr.Logger, event event.RecorderWrapper,
 ) {
 	options.RateLimiter = internal.RateLimiter(flagVar.FailureBaseDelay,
 		flagVar.FailureMaxDelay, flagVar.RateLimiterFrequency, flagVar.RateLimiterBurst)
@@ -443,7 +394,7 @@ func setupManifestReconciler(mgr ctrl.Manager, flagVar *flags.FlagVar, options c
 	}
 }
 
-func setupKcpWatcherReconciler(mgr ctrl.Manager, options ctrlruntime.Options, event event.Event, flagVar *flags.FlagVar,
+func setupKcpWatcherReconciler(mgr ctrl.Manager, options ctrlruntime.Options, event event.RecorderWrapper, flagVar *flags.FlagVar,
 	setupLog logr.Logger,
 ) {
 	options.RateLimiter = internal.RateLimiter(flagVar.FailureBaseDelay,

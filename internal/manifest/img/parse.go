@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	error2 "github.com/kyma-project/lifecycle-manager/internal/common/errors"
 
 	"ocm.software/ocm/api/ocm"
 	"ocm.software/ocm/api/ocm/compdesc"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/kyma-project/lifecycle-manager/api/shared"
 	"github.com/kyma-project/lifecycle-manager/api/v1beta2"
-	"github.com/kyma-project/lifecycle-manager/pkg/common"
 	"github.com/kyma-project/lifecycle-manager/pkg/ocmextensions"
 )
 
@@ -47,7 +47,7 @@ func parseDescriptor(ctx *runtime.UnstructuredTypedObject, descriptor *compdesc.
 	}
 	typedRepo, ok := repo.(*genericocireg.RepositorySpec)
 	if !ok {
-		return nil, common.ErrTypeAssert
+		return nil, error2.ErrTypeAssert
 	}
 	layersByName, err := parseLayersByName(typedRepo, descriptor)
 	if err != nil {
@@ -76,7 +76,7 @@ func parseLayersByName(repo *genericocireg.RepositorySpec, descriptor *compdesc.
 		case localblob.Type:
 			accessSpec, ok := spec.(*localblob.AccessSpec)
 			if !ok {
-				return nil, common.ErrTypeAssert
+				return nil, error2.ErrTypeAssert
 			}
 			layerRef, err := getOCIRef(repo, descriptor, accessSpec, resource.Labels)
 			if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	error2 "github.com/kyma-project/lifecycle-manager/internal/common/errors"
 	"time"
 
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +25,6 @@ import (
 	"github.com/kyma-project/lifecycle-manager/internal/manifest/status"
 	"github.com/kyma-project/lifecycle-manager/internal/pkg/metrics"
 	"github.com/kyma-project/lifecycle-manager/internal/pkg/resources"
-	"github.com/kyma-project/lifecycle-manager/pkg/common"
 	"github.com/kyma-project/lifecycle-manager/pkg/queue"
 	"github.com/kyma-project/lifecycle-manager/pkg/util"
 )
@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	skrClient, err := r.getTargetClient(ctx, manifest)
 	if err != nil {
-		if !manifest.GetDeletionTimestamp().IsZero() && errors.Is(err, common.ErrAccessSecretNotFound) {
+		if !manifest.GetDeletionTimestamp().IsZero() && errors.Is(err, error2.ErrAccessSecretNotFound) {
 			return r.cleanupManifest(ctx, manifest, manifestStatus, metrics.ManifestClientInit, err)
 		}
 
@@ -239,7 +239,7 @@ func (r *Reconciler) cleanupManifest(ctx context.Context, manifest *v1beta2.Mani
 		return ctrl.Result{}, err
 	}
 	var finalizerRemoved bool
-	if errors.Is(originalErr, common.ErrAccessSecretNotFound) || manifest.IsUnmanaged() {
+	if errors.Is(originalErr, error2.ErrAccessSecretNotFound) || manifest.IsUnmanaged() {
 		finalizerRemoved = finalizer.RemoveAllFinalizers(manifest)
 	} else {
 		finalizerRemoved = finalizer.RemoveRequiredFinalizers(manifest)
@@ -449,7 +449,7 @@ func pruneResource(diff []*resource.Info, resourceType string, resourceName stri
 	for index, info := range diff {
 		obj, ok := info.Object.(client.Object)
 		if !ok {
-			return diff, common.ErrTypeAssert
+			return diff, error2.ErrTypeAssert
 		}
 		if obj.GetObjectKind().GroupVersionKind().Kind == resourceType && obj.GetName() == resourceName {
 			return append(diff[:index], diff[index+1:]...), nil

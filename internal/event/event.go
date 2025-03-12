@@ -5,13 +5,6 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-type Event interface {
-	Normal(object machineryruntime.Object, reason Reason, msg string)
-	Warning(object machineryruntime.Object, reason Reason, err error)
-}
-
-type Reason string
-
 const (
 	typeNormal         = "Normal"
 	typeWarning        = "Warning"
@@ -26,18 +19,18 @@ func NewRecorderWrapper(recorder record.EventRecorder) *RecorderWrapper {
 	return &RecorderWrapper{recorder}
 }
 
-func (e *RecorderWrapper) Normal(obj machineryruntime.Object, reason Reason, msg string) {
+func (e *RecorderWrapper) Normal(obj machineryruntime.Object, reason, msg string) {
 	if obj == nil {
 		return
 	}
-	e.recorder.Event(obj, typeNormal, string(reason), msg)
+	e.recorder.Event(obj, typeNormal, reason, msg)
 }
 
-func (e *RecorderWrapper) Warning(obj machineryruntime.Object, reason Reason, err error) {
+func (e *RecorderWrapper) Warning(obj machineryruntime.Object, reason string, err error) {
 	if obj == nil || err == nil {
 		return
 	}
-	e.recorder.Event(obj, typeWarning, string(reason), truncatedErrMsg(err))
+	e.recorder.Event(obj, typeWarning, reason, truncatedErrMsg(err))
 }
 
 func truncatedErrMsg(err error) string {

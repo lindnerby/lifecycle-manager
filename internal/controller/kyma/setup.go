@@ -5,6 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+
+	"github.com/go-logr/logr"
+	"github.com/kyma-project/lifecycle-manager/internal"
+	"github.com/kyma-project/lifecycle-manager/internal/descriptor/provider"
+	eventwrapper "github.com/kyma-project/lifecycle-manager/internal/event"
+	"github.com/kyma-project/lifecycle-manager/internal/maintenancewindows"
+	"github.com/kyma-project/lifecycle-manager/internal/pkg/flags"
+	"github.com/kyma-project/lifecycle-manager/internal/pkg/metrics"
+	"github.com/kyma-project/lifecycle-manager/internal/remote"
+	"github.com/kyma-project/lifecycle-manager/internal/usecase/kyma/status/modules"
+	"github.com/kyma-project/lifecycle-manager/pkg/queue"
+	"github.com/kyma-project/lifecycle-manager/pkg/templatelookup"
+	"github.com/kyma-project/lifecycle-manager/pkg/templatelookup/moduletemplateinfolookup"
+	"github.com/kyma-project/lifecycle-manager/pkg/watcher"
 
 	watcherevent "github.com/kyma-project/runtime-watcher/listener/pkg/event"
 	"github.com/kyma-project/runtime-watcher/listener/pkg/types"
@@ -40,7 +55,67 @@ var (
 	errConvertingWatcherEvent = errors.New("error converting watched object to unstructured event")
 )
 
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, opts ctrlruntime.Options, settings SetupOptions) error {
+func SetupReconciler(mgr ctrl.Manager, descriptorProvider *provider.CachedDescriptorProvider,
+	skrContextFactory remote.SkrContextProvider, event *eventwrapper.RecorderWrapper, flagVar *flags.FlagVar, options ctrlruntime.Options,
+	skrWebhookManager *watcher.SKRWebhookManifestManager, kymaMetrics *metrics.KymaMetrics,
+	setupLog logr.Logger, maintenanceWindow maintenancewindows.MaintenanceWindow,
+) {
+	options.RateLimiter = internal.RateLimiter(flagVar.FailureBaseDelay,
+		flagVar.FailureMaxDelay, flagVar.RateLimiterFrequency, flagVar.RateLimiterBurst)
+	options.CacheSyncTimeout = flagVar.CacheSyncTimeout
+	options.MaxConcurrentReconciles = flagVar.MaxConcurrentKymaReconciles
+
+	moduleTemplateInfoLookupStrategies := moduletemplateinfolookup.NewModuleTemplateInfoLookupStrategies([]moduletemplateinfolookup.ModuleTemplateInfoLookupStrategy{
+		moduletemplateinfolookup.NewByVersionStrategy(mgr.GetClient()),
+		moduletemplateinfolookup.NewByChannelStrategy(mgr.GetClient()),
+		moduletemplateinfolookup.NewWithMaintenanceWindowDecorator(maintenanceWindow,
+			moduletemplateinfolookup.NewByModuleReleaseMetaStrategy(mgr.GetClient())),
+	})
+	requeueIntervals := queue.RequeueIntervals{
+		Success: flagVar.KymaRequeueSuccessInterval,
+		Busy:    flagVar.KymaRequeueBusyInterval,
+		Error:   flagVar.KymaRequeueErrInterval,
+		Warning: flagVar.KymaRequeueWarningInterval,
+	}
+	syncRemoteCrds := remote.NewSyncCrdsUseCase(mgr.GetClient(), skrContextFactory, nil)
+
+	var getModuleFunc = func(ctx context.Context, module client.Object) error {
+		return nil
+	}
+
+	updateStatusModules := modules.NewUpdateStatusModulesUC(getModuleFunc, kymaMetrics.RemoveModuleStateMetrics)
+	remoteCatalog := remote.NewRemoteCatalogFromKyma(mgr.GetClient(), skrContextFactory, flagVar.RemoteSyncNamespace)
+	moduleTemplatelookup := templatelookup.NewTemplateLookup(mgr.GetClient(), descriptorProvider, moduleTemplateInfoLookupStrategies)
+	kymaReconciler := NewReconciler(mgr.GetClient(),
+		event,
+		requeueIntervals,
+		skrContextFactory,
+		descriptorProvider,
+		syncRemoteCrds,
+		updateStatusModules,
+		skrWebhookManager,
+		kymaMetrics,
+		remoteCatalog,
+		moduleTemplatelookup,
+	)
+
+	kymaReconciler.InKCPMode = flagVar.InKCPMode
+	kymaReconciler.RemoteSyncNamespace = flagVar.RemoteSyncNamespace
+	kymaReconciler.IsManagedKyma = flagVar.IsKymaManaged
+
+	kymaSetupOptions := SetupOptions{
+		ListenerAddr:                 flagVar.KymaListenerAddr,
+		EnableDomainNameVerification: flagVar.EnableDomainNameVerification,
+		IstioNamespace:               flagVar.IstioNamespace,
+	}
+	err := kymaReconciler.SetupWithManager(mgr, options, kymaSetupOptions)
+	if err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Kyma")
+		os.Exit(1)
+	}
+}
+
+func (r *Reconciler) setupWithManager(mgr ctrl.Manager, opts ctrlruntime.Options, settings SetupOptions) error {
 	var verifyFunc watcherevent.Verify
 	if settings.EnableDomainNameVerification {
 		verifyFunc = security.NewRequestVerifier(mgr.GetClient()).Verify

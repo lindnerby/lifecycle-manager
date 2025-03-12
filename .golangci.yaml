@@ -66,6 +66,8 @@ linters-settings:
         alias: containerregistryv1
       - pkg: github.com/kyma-project/lifecycle-manager/internal/controller/common/metrics
         alias: commonmetrics
+      - pkg: github.com/kyma-project/lifecycle-manager/internal/common/errors/
+        alias: commonerrors
       - pkg: github.com/kyma-project/lifecycle-manager/internal/declarative/v2
         alias: declarativev2
       - pkg: github.com/kyma-project/lifecycle-manager/tests/integration/declarative

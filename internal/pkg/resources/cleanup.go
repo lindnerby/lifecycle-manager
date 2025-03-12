@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"errors"
+	error2 "github.com/kyma-project/lifecycle-manager/internal/common/errors"
 
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/resource"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/kyma-project/lifecycle-manager/api/shared"
 	"github.com/kyma-project/lifecycle-manager/api/v1beta2"
-	"github.com/kyma-project/lifecycle-manager/pkg/common"
 	"github.com/kyma-project/lifecycle-manager/pkg/util"
 )
 
@@ -63,7 +63,7 @@ func SplitResources(resources []*resource.Info) ([]*resource.Info, []*resource.I
 	for _, item := range resources {
 		obj, ok := item.Object.(client.Object)
 		if !ok {
-			return nil, nil, common.ErrTypeAssert
+			return nil, nil, error2.ErrTypeAssert
 		}
 		if IsOperatorRelatedResources(obj.GetObjectKind().GroupVersionKind().Kind) {
 			operatorRelatedResources = append(operatorRelatedResources, item)

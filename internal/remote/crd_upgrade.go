@@ -29,15 +29,15 @@ type SyncCrdsUseCase struct {
 
 func NewSyncCrdsUseCase(kcpClient client.Client, skrContextFactory SkrContextProvider,
 	cache *crd.Cache,
-) SyncCrdsUseCase {
+) *SyncCrdsUseCase {
 	if cache == nil {
-		return SyncCrdsUseCase{
+		return &SyncCrdsUseCase{
 			kcpClient:         kcpClient,
 			skrContextFactory: skrContextFactory,
 			crdCache:          crd.NewCache(nil),
 		}
 	}
-	return SyncCrdsUseCase{
+	return &SyncCrdsUseCase{
 		kcpClient:         kcpClient,
 		skrContextFactory: skrContextFactory,
 		crdCache:          cache,

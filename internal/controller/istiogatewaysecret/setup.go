@@ -34,12 +34,10 @@ func SetupReconciler(mgr ctrl.Manager, flagVar *flags.FlagVar, options ctrlrunti
 	options.MaxConcurrentReconciles = flagVar.MaxConcurrentWatcherReconciles
 
 	clnt := gatewaysecretclient.NewGatewaySecretRotationClient(mgr.GetConfig())
-	var parseLastModifiedFunc gatewaysecret.TimeParserFunc = func(secret *apicorev1.Secret,
-		annotation string,
-	) (time.Time, error) {
+	var parseLastModifiedFunc gatewaysecret.TimeParserFunc = func(secret *apicorev1.Secret, annotation string) (time.Time, error) {
 		if strValue, ok := secret.Annotations[annotation]; ok {
-			if time, err := time.Parse(time.RFC3339, strValue); err == nil {
-				return time, nil
+			if parsedTime, err := time.Parse(time.RFC3339, strValue); err == nil {
+				return parsedTime, nil
 			}
 		}
 		return time.Time{}, fmt.Errorf("%w: %s", errCouldNotGetTimeFromAnnotation, annotation)
@@ -63,10 +61,11 @@ func SetupReconciler(mgr ctrl.Manager, flagVar *flags.FlagVar, options ctrlrunti
 		return secret, nil
 	}
 
-	return NewReconciler(getSecretFunc, handler, queue.RequeueIntervals{
+	requeueIntervals := queue.RequeueIntervals{
 		Success: flagVar.IstioGatewaySecretRequeueSuccessInterval,
 		Error:   flagVar.IstioGatewaySecretRequeueErrInterval,
-	}).setupWithManager(mgr, options)
+	}
+	return NewReconciler(getSecretFunc, handler, requeueIntervals).setupWithManager(mgr, options)
 }
 
 func (r *Reconciler) setupWithManager(mgr ctrl.Manager, opts ctrlruntime.Options) error {

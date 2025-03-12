@@ -21,18 +21,16 @@ var (
 
 type MetricsCleanupFunc func(kymaName, moduleName string)
 
-type ManifestClient interface {
-	Get(ctx context.Context, objectKey client.ObjectKey) (v1beta2.Manifest, error)
-}
+type GetModuleFunc func(ctx context.Context, module client.Object) error
 
 type UpdateStatusModulesUC struct {
-	manifestClient ManifestClient
+	getModuleFunc  GetModuleFunc
 	cleanupMetrics MetricsCleanupFunc
 }
 
-func NewUpdateStatusModulesUC(cleanupMetrics MetricsCleanupFunc, manifestClient ManifestClient) *UpdateStatusModulesUC {
+func NewUpdateStatusModulesUC(getModuleFunc GetModuleFunc, cleanupMetrics MetricsCleanupFunc) *UpdateStatusModulesUC {
 	return &UpdateStatusModulesUC{
-		manifestClient: manifestClient,
+		getModuleFunc:  getModuleFunc,
 		cleanupMetrics: cleanupMetrics,
 	}
 }

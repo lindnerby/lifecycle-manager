@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	error2 "github.com/kyma-project/lifecycle-manager/internal/common/errors"
 	"net/http"
 
 	apicorev1 "k8s.io/api/core/v1"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/kyma-project/lifecycle-manager/api/shared"
 	"github.com/kyma-project/lifecycle-manager/internal/event"
-	"github.com/kyma-project/lifecycle-manager/pkg/common"
 )
 
 type SkrContextProvider interface {
@@ -52,7 +52,7 @@ func (k *KymaSkrContextProvider) Init(ctx context.Context, kyma types.Namespaced
 	}); err != nil {
 		return fmt.Errorf("failed to list kubeconfig secrets: %w", err)
 	} else if len(kubeConfigSecretList.Items) < 1 {
-		return fmt.Errorf("secret with label %s=%s %w", shared.KymaName, kyma.Name, common.ErrAccessSecretNotFound)
+		return fmt.Errorf("secret with label %s=%s %w", shared.KymaName, kyma.Name, error2.ErrAccessSecretNotFound)
 	}
 
 	kubeConfigSecret := kubeConfigSecretList.Items[0]
