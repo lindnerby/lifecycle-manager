@@ -2,6 +2,7 @@ package skrclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -36,6 +37,13 @@ func newClientProxy(config *rest.Config, mapper meta.RESTMapper) (client.Client,
 		mapper:     mapper,
 		baseClient: baseClient,
 	}, nil
+}
+
+func (p *ProxyClient) Apply(_ context.Context,
+	_ machineryruntime.ApplyConfiguration,
+	_ ...client.ApplyOption,
+) error {
+	return errors.New("not implemented")
 }
 
 func (p *ProxyClient) GroupVersionKindFor(obj machineryruntime.Object) (schema.GroupVersionKind, error) {
