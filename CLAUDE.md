@@ -118,7 +118,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ## Commits and Pull Requests
 - PRs are usually created from a fork branch against main, exceptions are working on upstream feature branches for collaboration on bigger features.
 - PRs will be merged with squash merge, so the PR title and description will form the commit message.
-- Always keep [conventional commits](https://www.conventionalcommits.org/) in mind when creating PRs, see our linter workflow for this convention: .github/workflows/lint-conventional-prs.yml.
+- Always keep [conventional commits](https://www.conventionalcommits.org/) in mind when creating PRs, see our linter workflow for this convention: `.github/workflows/lint-conventional-prs.yml`.
 - PR Title format: `<type>: <title>`, where title is one sentence explaining the reason for introducing the changeset.
 - The PR description should contain a short summary of the changes and if possible a reference issue. 
 - Types: `deps`, `chore`, `docs`, `feat`, `fix`, `refactor`, `test`.
