@@ -55,6 +55,28 @@ Not the entire project follows the ADRs yet, but all **new** code **MUST** follo
   - to run a specific test `gmake -f ./tests/e2e/Makefile <test name>`
     - note that only those tests forwarding to a dedicated makefile are supported like this yet
 
+## Code Conventions
+
+Follow the [Google Go Style Guide](https://google.github.io/styleguide/go/) as a baseline.
+
+Project-specific rules enforced by `golangci-lint` (see `.golangci.yaml`):
+- **Import aliases**: strictly enforced — key ones: `apimetav1`, `apicorev1`, `apierrors`, `machineryruntime`, `ctrl`, `ctrlruntime`
+- **Import ordering** (gci): standard → third-party → project (`github.com/kyma-project/lifecycle-manager`) → blank → dot
+- **Line length**: 120 chars | **Function length**: 80 lines | **Cyclomatic complexity**: 20
+- **All linters enabled by default** — check `.golangci.yaml` before adding `//nolint`
+- **`//nolint` requires explanation**: e.g., `//nolint:funlen // composition root wiring`
+
+## Commits and Pull Requests
+
+- PRs are usually created from a fork branch against main, exceptions are working on upstream feature branches for collaboration on bigger features.
+- PRs will be merged with squash merge, so the PR title and description will form the commit message.
+- Always keep [conventional commits](https://www.conventionalcommits.org/) in mind when creating PRs, see our linter workflow for this convention: `.github/workflows/lint-conventional-prs.yml`.
+- PR Title format: `<type>: <title>`, where title is one sentence explaining the reason for introducing the changeset.
+- Types: `deps`, `chore`, `docs`, `feat`, `fix`, `refactor`, `test`.
+- The PR description should contain a short summary of the changes and if possible a reference issue ideally with the "closes" or "resolves" keywords. 
+- Never mention Claude or any AI agent in commits or PRs (no author attribution, no Co-Authored-By, no references in commit messages).
+
+
 ## What behavioral guidelines to consider
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
@@ -114,12 +136,3 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
-## Commits and Pull Requests
-- PRs are usually created from a fork branch against main, exceptions are working on upstream feature branches for collaboration on bigger features.
-- PRs will be merged with squash merge, so the PR title and description will form the commit message.
-- Always keep [conventional commits](https://www.conventionalcommits.org/) in mind when creating PRs, see our linter workflow for this convention: `.github/workflows/lint-conventional-prs.yml`.
-- PR Title format: `<type>: <title>`, where title is one sentence explaining the reason for introducing the changeset.
-- The PR description should contain a short summary of the changes and if possible a reference issue ideally with the "closes" or "resolves" keywords. 
-- Types: `deps`, `chore`, `docs`, `feat`, `fix`, `refactor`, `test`.
-- Never mention Claude or any AI agent in commits or PRs (no author attribution, no Co-Authored-By, no references in commit messages).
