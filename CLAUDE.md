@@ -72,7 +72,7 @@ Project-specific rules enforced by `golangci-lint` (see `.golangci.yaml`):
 - PRs will be merged with squash merge, so the PR title and description will form the commit message.
 - Always keep [conventional commits](https://www.conventionalcommits.org/) in mind when creating PRs, see our linter workflow for this convention: `.github/workflows/lint-conventional-prs.yml`.
 - PR Title format: `<type>: <title>`, where title is one sentence explaining the reason for introducing the changeset.
-- Types: `deps`, `chore`, `docs`, `feat`, `fix`, `refactor`, `test`.
+- Ask what type to use when creating a PR: `deps`, `chore`, `docs`, `feat`, `fix`, `refactor`, `test`.
 - The PR description should contain a short summary of the changes and if possible a reference issue ideally with the "closes" or "resolves" keywords. 
 - Never mention Claude or any AI agent in commits or PRs (no author attribution, no Co-Authored-By, no references in commit messages).
 
