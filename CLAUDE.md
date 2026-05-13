@@ -120,6 +120,6 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - PRs will be merged with squash merge, so the PR title and description will form the commit message.
 - Always keep [conventional commits](https://www.conventionalcommits.org/) in mind when creating PRs, see our linter workflow for this convention: `.github/workflows/lint-conventional-prs.yml`.
 - PR Title format: `<type>: <title>`, where title is one sentence explaining the reason for introducing the changeset.
-- The PR description should contain a short summary of the changes and if possible a reference issue. 
+- The PR description should contain a short summary of the changes and if possible a reference issue ideally with the "closes" or "resolves" keywords. 
 - Types: `deps`, `chore`, `docs`, `feat`, `fix`, `refactor`, `test`.
 - Never mention Claude or any AI agent in commits or PRs (no author attribution, no Co-Authored-By, no references in commit messages).
