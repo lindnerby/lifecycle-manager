@@ -3,7 +3,7 @@
 Kyma Lifecycle Manager (KLM) is a Kubernetes operator built with kubebuilder and controller-runtime in Go.
 It manages the lifecycle of Kyma modules running on *SAP BTP, Kyma Runtimes* (SKRs) including their installation, update and uninstallation.
 KLM runs on a central **control plane (KCP)** Kubernetes cluster and manages remote **SKR** Kubernetes clusters.
-Modules are [OCM](https://ocm.software/) packaged components, typically containing a manifest of Kubernetes resources including a module operator. The Kyma CR configures which modules are installed on a given SKR cluster.
+Modules are [OCM](https://ocm.software/) packaged components, typically containing a manifest of Kubernetes resources including a module operator.
 
 To build KLM, run `make build`.
 
